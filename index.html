@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>足迹地图 · 定位与标注</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{
+    --bg:#0f1420; --panel:#161d2d; --card:#1d2639; --card2:#232e46;
+    --text:#e8edf7; --muted:#8b97ad; --line:#2a3550;
+    --accent:#4f8cff; --accent2:#7aa8ff; --danger:#ff5d5d; --ok:#3ecf8e; --warn:#ffb454;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg); color:var(--text); overflow:hidden;
+    display:flex; flex-direction:column; height:100dvh;
+  }
+  .muted{color:var(--muted)} .hidden{display:none!important}
+
+  /* ---------- 顶栏 ---------- */
+  header{
+    display:flex; align-items:center; gap:10px; padding:0 14px; height:54px; flex:0 0 auto;
+    background:var(--panel); border-bottom:1px solid var(--line);
+    padding-top:env(safe-area-inset-top); height:calc(54px + env(safe-area-inset-top));
+    z-index:1200;
+  }
+  .brand{font-weight:700; font-size:17px; white-space:nowrap}
+  .brand small{color:var(--muted); font-weight:400; margin-left:6px; font-size:12px}
+  header .actions{margin-left:auto; display:flex; gap:8px}
+
+  .btn{
+    appearance:none; border:1px solid var(--line); background:var(--card); color:var(--text);
+    padding:8px 14px; border-radius:10px; font-size:14px; cursor:pointer; line-height:1;
+    transition:background .15s,border-color .15s,opacity .15s;
+  }
+  .btn:hover{background:var(--card2); border-color:#3a4a72}
+  .btn:disabled{opacity:.45; cursor:not-allowed}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  .btn.primary:hover{background:var(--accent2)}
+  .btn.danger{background:transparent; border-color:#6b3040; color:var(--danger)}
+  .btn.danger:hover{background:#3a1c24}
+  .btn.small{padding:6px 10px; font-size:13px; border-radius:8px}
+  .btn.active{background:var(--danger); border-color:var(--danger); color:#fff}
+
+  /* ---------- 分享横幅 ---------- */
+  #banner{
+    flex:0 0 auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    background:#2a2413; border-bottom:1px solid #5a4a1a; color:#ffd57a;
+    padding:8px 14px; font-size:14px; z-index:1100;
+  }
+  #banner .grow{flex:1 1 auto}
+
+  /* ---------- 主区域 ---------- */
+  #app{flex:1 1 auto; display:flex; min-height:0; position:relative}
+  #map{flex:1 1 auto; min-width:0; background:#0a0e18; z-index:1}
+  #map .leaflet-control-attribution{background:rgba(13,18,30,.75); color:#7f8aa0; font-size:11px}
+  #map .leaflet-control-attribution a{color:#9fb4dd}
+  #map .leaflet-bar a{background:var(--card); color:var(--text); border-color:var(--line)}
+  #map .leaflet-bar a:hover{background:var(--card2)}
+  .leaflet-container{font-family:inherit}
+
+  /* ---------- 侧栏 ---------- */
+  #panel{
+    flex:0 0 340px; max-width:340px; background:var(--panel); border-left:1px solid var(--line);
+    display:flex; flex-direction:column; min-height:0; z-index:1150;
+  }
+  .panel-scroll{overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:12px; scrollbar-width:thin}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px}
+  .card h3{margin:0 0 8px; font-size:14px; letter-spacing:.5px}
+  .sec-head{display:flex; align-items:center; gap:8px; margin-bottom:8px}
+  .sec-head h3{margin:0; flex:1}
+  .badge{background:var(--card2); border-radius:99px; font-size:12px; padding:2px 9px; color:var(--muted)}
+  .sec-tools{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px}
+
+  #locInfo{font-size:13px; line-height:1.7; word-break:break-all}
+  #locInfo .latlng{font-family:ui-monospace,Consolas,monospace; color:var(--accent2)}
+  #locInfo .warn{color:var(--warn)}
+
+  #pointList{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px}
+  .point-item{background:var(--card2); border:1px solid var(--line); border-radius:12px; padding:10px 12px}
+  .point-item .pi-main{cursor:pointer}
+  .pi-title{font-weight:600; font-size:14px; display:flex; align-items:baseline; gap:8px}
+  .pi-title .name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .pi-time{color:var(--muted); font-size:11px; font-weight:400; margin-left:auto; white-space:nowrap}
+  .pi-coords{font-family:ui-monospace,Consolas,monospace; font-size:12px; color:var(--muted); margin-top:3px}
+  .pi-note{font-size:13px; color:#c6d0e2; margin-top:5px; white-space:pre-wrap; word-break:break-word;
+           display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden}
+  .pi-actions{display:flex; gap:6px; margin-top:8px}
+  #emptyHint{font-size:13px; line-height:1.8; text-align:center; padding:14px 6px}
+
+  #fabPanel{
+    display:none; position:absolute; right:14px; bottom:24px; z-index:1200;
+    width:52px; height:52px; border-radius:50%; border:1px solid var(--line);
+    background:var(--accent); color:#fff; font-size:22px; cursor:pointer;
+    box-shadow:0 4px 14px rgba(0,0,0,.45);
+  }
+
+  /* ---------- 弹窗 ---------- */
+  .pop{display:flex; flex-direction:column; gap:8px; min-width:230px}
+  .pop .leaflet-popup &{color:var(--text)}
+  .pop-coords{font-family:ui-monospace,Consolas,monospace; font-size:12px; color:var(--muted)}
+  .pop input,.pop textarea{
+    width:100%; background:#f4f7fd; color:#1b2437; border:1px solid #cdd7ea; border-radius:8px;
+    padding:7px 9px; font-size:13px; font-family:inherit; resize:vertical;
+  }
+  .pop-actions{display:flex; gap:6px}
+  .leaflet-popup-content-wrapper{background:var(--card); color:var(--text); border-radius:14px; border:1px solid var(--line)}
+  .leaflet-popup-tip{background:var(--card)}
+  .leaflet-popup-content{margin:14px 16px}
+
+  /* ---------- 地图图钉 / 蓝点 ---------- */
+  .pin-wrap{background:none!important; border:none!important}
+  .pin{width:30px; height:42px; filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))}
+  .bluedot{
+    width:18px; height:18px; border-radius:50%; background:#3b82f6; border:3px solid #fff;
+    box-shadow:0 0 0 3px rgba(59,130,246,.30), 0 2px 8px rgba(0,0,0,.5);
+    animation:pulse 2s ease-out infinite;
+  }
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 3px rgba(59,130,246,.35), 0 2px 8px rgba(0,0,0,.5)}
+    70%{box-shadow:0 0 0 16px rgba(59,130,246,0), 0 2px 8px rgba(0,0,0,.5)}
+    100%{box-shadow:0 0 0 3px rgba(59,130,246,0), 0 2px 8px rgba(0,0,0,.5)}
+  }
+
+  /* ---------- Toast ---------- */
+  #toast{
+    position:fixed; left:50%; bottom:34px; transform:translateX(-50%) translateY(20px);
+    background:#101725; color:var(--text); border:1px solid var(--line); border-radius:12px;
+    padding:10px 18px; font-size:14px; opacity:0; pointer-events:none; z-index:2000;
+    transition:opacity .25s, transform .25s; max-width:88vw; text-align:center;
+    box-shadow:0 6px 24px rgba(0,0,0,.5);
+  }
+  #toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+
+  /* ---------- 移动端 ---------- */
+  @media (max-width: 760px){
+    .brand small{display:none}
+    #panel{
+      position:absolute; left:0; right:0; bottom:0; max-width:none; flex:none;
+      max-height:62dvh; border-left:none; border-top:1px solid var(--line); border-radius:18px 18px 0 0;
+      transform:translateY(calc(100% - 0px)); transition:transform .28s ease;
+      box-shadow:0 -8px 30px rgba(0,0,0,.5);
+      padding-bottom:env(safe-area-inset-bottom);
+    }
+    #panel.open{transform:translateY(0)}
+    #fabPanel{display:block}
+    header{gap:6px} header .btn{padding:8px 10px}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">🌍 足迹地图<small>定位 · 标注 · 分享</small></div>
+  <div class="actions">
+    <button class="btn primary" id="btnLocate">📍 定位</button>
+    <button class="btn" id="btnMarkHere" disabled>✚ 标记此处</button>
+  </div>
+</header>
+
+<div id="banner" class="hidden">
+  <span id="bannerText">来自分享的位置</span>
+  <span class="grow"></span>
+  <button class="btn small primary" id="bannerSave">保存到本地</button>
+  <button class="btn small" id="bannerDismiss">忽略</button>
+</div>
+
+<div id="app">
+  <div id="map"></div>
+
+  <aside id="panel">
+    <div class="panel-scroll">
+      <section class="card">
+        <h3>📍 我的位置</h3>
+        <div id="locInfo" class="muted">尚未定位。点击右上角「定位」按钮获取当前 GPS / 网络位置。</div>
+      </section>
+
+      <section class="card">
+        <div class="sec-head">
+          <h3>🗺 位置标注</h3>
+          <span class="badge" id="pointCount">0</span>
+        </div>
+        <div class="sec-tools">
+          <button class="btn small" id="btnShareAll">🔗 分享全部</button>
+          <button class="btn small" id="btnExport">⬇ 导出</button>
+          <button class="btn small" id="btnImport">⬆ 导入</button>
+          <button class="btn small danger" id="btnClear">清空</button>
+          <input type="file" id="fileImport" accept=".json,application/json" hidden>
+        </div>
+        <ul id="pointList"></ul>
+        <div id="emptyHint" class="muted">
+          还没有标注。<br>
+          · 点「📍 定位」获取当前位置，再点「✚ 标记此处」收藏<br>
+          · 在地图上<strong>右键 / 长按</strong>任意位置即可添加标注<br>
+          · 每个标注可填写名称与备注评论，并单独分享
+        </div>
+      </section>
+    </div>
+  </aside>
+
+  <button id="fabPanel" title="标注列表">📋</button>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+'use strict';
+
+/* ================= 工具 ================= */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'p' + Date.now() + Math.random().toString(36).slice(2, 8));
+const fmtTime = ts => new Date(ts).toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+const fmtLL = (la, ln) => `${la.toFixed(6)}, ${ln.toFixed(6)}`;
+
+let toastTimer = null;
+function toast(msg, ok = true){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.style.borderColor = ok ? 'var(--line)' : 'var(--danger)';
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+async function copyText(text){
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch(e){
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta); ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch(_){}
+    ta.remove(); return ok;
+  }
+}
+
+function encB64(obj){
+  return btoa(unescape(encodeURIComponent(JSON.stringify(obj))))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function decB64(s){
+  s = s.replace(/-/g,'+').replace(/_/g,'/');
+  while (s.length % 4) s += '=';
+  return JSON.parse(decodeURIComponent(escape(atob(s))));
+}
+
+/* ============ WGS-84 ⇄ GCJ-02(高德底图纠偏)============ */
+const _PI = 3.14159265358979324, _A = 6378245.0, _EE = 0.00669342162296594323;
+function _tLat(x, y){
+  let r = -100 + 2*x + 3*y + 0.2*y*y + 0.1*x*y + 0.2*Math.sqrt(Math.abs(x));
+  r += (20*Math.sin(6*x*_PI) + 20*Math.sin(2*x*_PI)) * 2/3;
+  r += (20*Math.sin(y*_PI) + 40*Math.sin(y/3*_PI)) * 2/3;
+  r += (160*Math.sin(y/12*_PI) + 320*Math.sin(y*_PI/30)) * 2/3;
+  return r;
+}
+function _tLng(x, y){
+  let r = 300 + x + 2*y + 0.1*x*x + 0.1*x*y + 0.1*Math.sqrt(Math.abs(x));
+  r += (20*Math.sin(6*x*_PI) + 20*Math.sin(2*x*_PI)) * 2/3;
+  r += (20*Math.sin(x*_PI) + 40*Math.sin(x/3*_PI)) * 2/3;
+  r += (150*Math.sin(x/12*_PI) + 300*Math.sin(x/30*_PI)) * 2/3;
+  return r;
+}
+const _outCN = (la, ln) => ln < 72.004 || ln > 137.8347 || la < 0.8293 || la > 55.8271;
+function wgs2gcj(la, ln){
+  if (_outCN(la, ln)) return [la, ln];
+  let dLat = _tLat(ln - 105, la - 35), dLng = _tLng(ln - 105, la - 35);
+  const rad = la / 180 * _PI;
+  let magic = Math.sin(rad); magic = 1 - _EE * magic * magic;
+  const sq = Math.sqrt(magic);
+  dLat = (dLat * 180) / ((_A * (1 - _EE)) / (magic * sq) * _PI);
+  dLng = (dLng * 180) / (_A / sq * Math.cos(rad) * _PI);
+  return [la + dLat, ln + dLng];
+}
+function gcj2wgs(la, ln){
+  const [gla, gln] = wgs2gcj(la, ln);
+  return [la * 2 - gla, ln * 2 - gln]; // 一阶反解,误差 < 1m
+}
+
+/* ================= 地图 ================= */
+if (!window.L){
+  document.body.innerHTML = '<div style="padding:40px;font-size:15px;line-height:2">地图库(Leaflet CDN)加载失败,请检查网络后刷新。</div>';
+  throw new Error('Leaflet not loaded');
+}
+
+const amapLayer = L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+  subdomains: '1234', maxZoom: 19, maxNativeZoom: 18, attribution: '© 高德地图', gcj: true
+});
+const osmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19, attribution: '© OpenStreetMap contributors', gcj: false
+});
+
+const map = L.map('map', { worldCopyJump: true, zoomControl: false }).setView([34, 106], 4);
+L.control.zoom({ position: 'topleft' }).addTo(map);
+amapLayer.addTo(map);
+L.control.layers({ '高德地图': amapLayer, 'OpenStreetMap': osmLayer }, null, { position: 'topright' }).addTo(map);
+
+const usingGCJ = () => map.hasLayer(amapLayer) && !!amapLayer.options.gcj;
+const disp = ll => { const [la, ln] = usingGCJ() ? wgs2gcj(ll.lat, ll.lng) : [ll.lat, ll.lng]; return [la, ln]; };
+const fromDisp = ll => usingGCJ() ? gcj2wgs(ll.lat, ll.lng) : [ll.lat, ll.lng];
+
+/* ================= 状态与存储 ================= */
+const LS_KEY = 'footprint-map-v1';
+let storageOK = true;
+function loadPoints(){
+  try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; }
+  catch(e){ storageOK = false; return []; }
+}
+function savePoints(){
+  try { localStorage.setItem(LS_KEY, JSON.stringify(points)); }
+  catch(e){ storageOK = false; }
+}
+let points = loadPoints();     // {id,lat,lng,title,note,createdAt,accuracy?}
+let sharedTemp = [];           // 分享链接打开后的临时点(未保存)
+let curFix = null;             // {lat,lng,accuracy}
+let watchId = null;
+
+/* ================= 图标 ================= */
+function pinIcon(color){
+  return L.divIcon({
+    className: 'pin-wrap',
+    html: `<svg class="pin" viewBox="0 0 24 34"><path fill="${color}" stroke="rgba(0,0,0,.25)" stroke-width=".6" d="M12 1.2c-5.6 0-10 4.3-10 9.7 0 6.9 8.4 16 9.2 16.9.4.4 1.2.4 1.6 0 .8-.9 9.2-10 9.2-16.9 0-5.4-4.4-9.7-10-9.7z"/><circle cx="12" cy="10.6" r="3.4" fill="rgba(255,255,255,.92)"/></svg>`,
+    iconSize: [30, 42], iconAnchor: [15, 40], popupAnchor: [0, -36]
+  });
+}
+const blueDotIcon = L.divIcon({ className: 'pin-wrap', html: '<div class="bluedot"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
+
+/* ================= 渲染 ================= */
+const markersGroup = L.layerGroup().addTo(map);
+const markersById = {};
+
+function popupHtml(p){
+  const acc = p.accuracy ? ` <span style="opacity:.65">±${Math.round(p.accuracy)}m</span>` : '';
+  return `<div class="pop" data-id="${p.id}">
+    <div class="pop-coords">${fmtLL(p.lat, p.lng)}${acc}</div>
+    <input class="pop-title" placeholder="名称(可选,如:家 / 公司)" maxlength="60">
+    <textarea class="pop-note" rows="3" placeholder="备注 / 评论..." maxlength="500"></textarea>
+    <div class="pop-actions">
+      <button class="btn primary small" data-act="save">保存</button>
+      <button class="btn small" data-act="share">分享</button>
+      <button class="btn danger small" data-act="del">删除</button>
+    </div>
+  </div>`;
+}
+
+function renderAll(){
+  markersGroup.clearLayers();
+  Object.keys(markersById).forEach(k => delete markersById[k]);
+
+  for (const p of points){
+    const m = L.marker(disp(p), { icon: pinIcon('#4f8cff'), riseOnHover: true })
+      .bindPopup(popupHtml(p), { maxWidth: 300, autoPanPadding: [24, 24] })
+      .addTo(markersGroup);
+    if (p.title) m.bindTooltip(esc(p.title), { direction: 'top', offset: [0, -36] });
+    markersById[p.id] = m;
+  }
+  for (const t of sharedTemp){
+    L.marker(disp(t), { icon: pinIcon('#ff9f43') })
+      .bindPopup(popupHtml(t), { maxWidth: 300, autoPanPadding: [24, 24] })
+      .addTo(markersGroup);
+  }
+  if (curFix){
+    const [la, ln] = wgs2gcj(curFix.lat, curFix.lng); // 蓝点画在图层坐标系里,GCJ 图层也纠偏
+    const pos = usingGCJ() ? [la, ln] : [curFix.lat, curFix.lng];
+    if (curFix.accuracy) L.circle(pos, { radius: curFix.accuracy, color: '#3b82f6', weight: 1, fillColor: '#3b82f6', fillOpacity: .12 }).addTo(markersGroup);
+    L.marker(pos, { icon: blueDotIcon, zIndexOffset: 1000 }).addTo(markersGroup);
+  }
+  renderList();
+}
+
+function renderList(){
+  $('#pointCount').textContent = points.length;
+  $('#emptyHint').classList.toggle('hidden', points.length > 0);
+  const ul = $('#pointList');
+  ul.innerHTML = points.map(p => `
+    <li class="point-item" data-id="${p.id}">
+      <div class="pi-main">
+        <div class="pi-title"><span class="name">${esc(p.title) || '<span class="muted">未命名</span>'}</span><span class="pi-time">${fmtTime(p.createdAt)}</span></div>
+        <div class="pi-coords">${fmtLL(p.lat, p.lng)}</div>
+        ${p.note ? `<div class="pi-note">${esc(p.note)}</div>` : ''}
+      </div>
+      <div class="pi-actions">
+        <button class="btn small" data-act="share">🔗 分享</button>
+        <button class="btn small" data-act="edit">✏️ 编辑</button>
+        <button class="btn small danger" data-act="del">删除</button>
+      </div>
+    </li>`).join('');
+}
+
+/* ================= 点位 CRUD ================= */
+function addPoint(lat, lng, extra = {}){
+  const p = { id: uid(), lat: +lat, lng: +lng, title: '', note: '', createdAt: Date.now(), ...extra };
+  points.unshift(p);
+  savePoints();
+  renderAll();
+  return p;
+}
+function delPoint(id){
+  points = points.filter(p => p.id !== id);
+  savePoints();
+  renderAll();
+  toast('已删除');
+}
+function openPointPopup(id){
+  const m = markersById[id];
+  if (!m) return;
+  m.openPopup(); // 先开弹窗(Leaflet autoPan 会自动平移),再飞行,避免动画时序竞态
+  map.flyTo(m.getLatLng(), Math.max(map.getZoom(), 13), { duration: .6 });
+}
+
+/* 弹窗打开时填充数据并绑定按钮 */
+map.on('popupopen', e => {
+  const root = e.popup.getElement().querySelector('.pop');
+  if (!root) return;
+  const id = root.dataset.id;
+  const p = points.find(x => x.id === id) || sharedTemp.find(x => x.id === id);
+  if (!p) return;
+  root.querySelector('.pop-title').value = p.title || '';
+  root.querySelector('.pop-note').value = p.note || '';
+  root.querySelector('.pop-actions').onclick = ev => {
+    const act = ev.target?.dataset?.act;
+    if (act === 'save'){
+      p.title = root.querySelector('.pop-title').value.trim();
+      p.note = root.querySelector('.pop-note').value.trim();
+      savePoints(); renderAll();
+      map.closePopup();
+      toast('已保存 ✓');
+    } else if (act === 'share'){
+      doSharePoint(p);
+    } else if (act === 'del'){
+      if (sharedTemp.some(x => x.id === id)){ // 分享临时点:仅从地图移除
+        sharedTemp = sharedTemp.filter(x => x.id !== id);
+        renderAll(); map.closePopup(); return;
+      }
+      map.closePopup();
+      delPoint(id);
+    }
+  };
+});
+
+/* ================= 定位 ================= */
+const locInfo = $('#locInfo');
+function renderLocInfo(){
+  if (!curFix){ locInfo.innerHTML = '尚未定位。点击右上角「定位」按钮获取当前 GPS / 网络位置。'; return; }
+  locInfo.innerHTML =
+    `<span class="latlng">${fmtLL(curFix.lat, curFix.lng)}</span><br>` +
+    `精度:±${Math.round(curFix.accuracy || 0)} m · 更新于 ${fmtTime(Date.now())}` +
+    (storageOK ? '' : '<br><span class="warn">⚠ 当前环境无法使用本地存储,数据仅保存在内存中</span>');
+}
+
+function startWatch(){
+  if (!('geolocation' in navigator)){
+    locInfo.innerHTML = '<span class="warn">此浏览器不支持定位(Geolocation)。</span>';
+    toast('浏览器不支持定位', false); return;
+  }
+  const btn = $('#btnLocate');
+  btn.disabled = true; btn.textContent = '⏳ 定位中…';
+  watchId = navigator.geolocation.watchPosition(onFix, onLocErr, {
+    enableHighAccuracy: true, timeout: 15000, maximumAge: 3000
+  });
+}
+function stopWatch(){
+  if (watchId !== null){ navigator.geolocation.clearWatch(watchId); watchId = null; }
+  const btn = $('#btnLocate');
+  btn.disabled = false; btn.classList.remove('active'); btn.textContent = '📍 定位';
+}
+function onFix(pos){
+  const { latitude, longitude, accuracy } = pos.coords;
+  const first = !curFix;
+  curFix = { lat: latitude, lng: longitude, accuracy };
+  stopWatch();
+  $('#btnMarkHere').disabled = false;
+  renderLocInfo(); renderAll();
+  if (first){
+    map.flyTo(disp(curFix), 16, { duration: .8 });
+    toast(`定位成功 ±${Math.round(accuracy || 0)}m`);
+  }
+}
+function onLocErr(err){
+  stopWatch();
+  const msgs = {
+    1: '定位权限被拒绝 —— 请在浏览器地址栏/系统设置中允许位置权限',
+    2: '暂时获取不到位置信息(设备 GPS/网络定位不可用)',
+    3: '定位超时,请到开阔处重试'
+  };
+  let msg = msgs[err && err.code] || '定位失败';
+  if (!window.isSecureContext) msg += '<br><span class="warn">⚠ 当前页面不是 HTTPS,手机浏览器通常会直接禁用定位(用 https:// 或 localhost 访问)</span>';
+  locInfo.innerHTML = `<span class="warn">${msg}</span>`;
+  toast('定位失败:' + (msgs[err && err.code] || '未知错误'), false);
+}
+
+$('#btnLocate').addEventListener('click', () => { if (watchId === null) startWatch(); else stopWatch(); });
+$('#btnMarkHere').addEventListener('click', () => {
+  if (!curFix) return;
+  const p = addPoint(curFix.lat, curFix.lng, { accuracy: curFix.accuracy });
+  openPointPopup(p.id);
+  toast('已标记当前位置,可填写名称与备注');
+});
+
+/* 地图右键 / 长按添加标注 */
+map.on('contextmenu', e => {
+  const [la, ln] = fromDisp(e.latlng);
+  const p = addPoint(la, ln);
+  openPointPopup(p.id);
+});
+
+/* ================= 分享 ================= */
+function buildLink(payload){
+  const base = location.href.split('#')[0];
+  return base + '#pts=' + encB64(payload);
+}
+function stripPayload(list){
+  return list.map(p => ({ lat: +p.lat.toFixed(6), lng: +p.lng.toFixed(6), title: p.title || '', note: p.note || '' }));
+}
+async function webShare({ title, text, url }){
+  if (navigator.share){
+    try { await navigator.share({ title, text, url }); return true; } catch(e){ if (e.name === 'AbortError') return true; }
+  }
+  return false;
+}
+async function doSharePoint(p){
+  const link = buildLink(stripPayload([p]));
+  const text = `📍 ${p.title || '我的位置'} (${fmtLL(p.lat, p.lng)})${p.note ? '\n💬 ' + p.note : ''}`;
+  const shared = await webShare({ title: p.title || '位置分享', text: text + '\n' + link, url: link });
+  if (!shared){
+    const ok = await copyText(`${text}\n🔗 ${link}`);
+    toast(ok ? '已复制分享内容(粘贴给好友即可)' : '复制失败,请手动复制链接', ok);
+  }
+}
+async function doShareAll(){
+  if (!points.length){ toast('还没有任何标注', false); return; }
+  const link = buildLink(stripPayload(points));
+  const text = `🗺 我在足迹地图上标注了 ${points.length} 个位置,点击链接查看:`;
+  const shared = await webShare({ title: '足迹地图分享', text: text + '\n' + link, url: link });
+  if (!shared){
+    const ok = await copyText(`${text}\n🔗 ${link}`);
+    toast(ok ? `已复制分享链接(含 ${points.length} 个标注)` : '复制失败,请手动复制', ok);
+  }
+}
+
+/* ---------- 分享链接打开:解析 hash ---------- */
+function parseShared(){
+  const m = location.hash.match(/^#pts=(.+)$/) || location.hash.match(/^#p=(.+)$/);
+  if (!m) return;
+  try {
+    let data = decB64(m[1]);
+    if (!Array.isArray(data)) data = [data];
+    const arr = data
+      .filter(d => typeof d === 'object' && isFinite(+d.lat) && isFinite(+d.lng))
+      .map(d => ({ id: uid(), lat: +d.lat, lng: +d.lng, title: d.title || '', note: d.note || '', createdAt: Date.now() }));
+    if (!arr.length) return;
+    sharedTemp = arr;
+    renderAll();
+    const bounds = L.latLngBounds(arr.map(p => disp(p)));
+    map.fitBounds(bounds.pad(.25), { maxZoom: 16 });
+    $('#bannerText').textContent = `地图上有 ${arr.length} 个来自分享链接的位置(橙色图钉)`;
+    $('#banner').classList.remove('hidden');
+  } catch(e){ /* 无效链接静默忽略 */ }
+}
+/* 页面内点击分享链接(hash 变化)时同样解析,无需刷新 */
+window.addEventListener('hashchange', () => {
+  if (/^#(pts|p)=/.test(location.hash)) parseShared();
+});
+$('#bannerSave').addEventListener('click', () => {
+  points = [...sharedTemp.map(p => ({ ...p, id: uid(), createdAt: Date.now() })), ...points];
+  sharedTemp = [];
+  savePoints(); renderAll();
+  $('#banner').classList.add('hidden');
+  clearHash();
+  toast(`已保存 ${points.length} 个位置到本地 ✓`);
+});
+$('#bannerDismiss').addEventListener('click', () => {
+  sharedTemp = []; renderAll();
+  $('#banner').classList.add('hidden');
+  clearHash();
+});
+function clearHash(){
+  history.replaceState(null, '', location.pathname + location.search);
+}
+
+/* ================= 导入 / 导出 ================= */
+$('#btnExport').addEventListener('click', () => {
+  if (!points.length){ toast('没有可导出的标注', false); return; }
+  const blob = new Blob([JSON.stringify({ app: 'footprint-map', version: 1, exportedAt: new Date().toISOString(), points }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `足迹地图-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+$('#btnImport').addEventListener('click', () => $('#fileImport').click());
+$('#fileImport').addEventListener('change', async e => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    const arr = Array.isArray(data) ? data : (Array.isArray(data.points) ? data.points : []);
+    const valid = arr.filter(d => isFinite(+d.lat) && isFinite(+d.lng))
+      .map(d => ({ id: uid(), lat: +d.lat, lng: +d.lng, title: d.title || '', note: d.note || '', createdAt: d.createdAt || Date.now() }));
+    if (!valid.length){ toast('文件里没有有效的位置数据', false); return; }
+    points = [...valid, ...points];
+    savePoints(); renderAll();
+    toast(`已导入 ${valid.length} 个标注 ✓`);
+  } catch(err){ toast('导入失败:文件不是有效的 JSON', false); }
+});
+$('#btnClear').addEventListener('click', () => {
+  if (!points.length){ toast('列表已是空的', false); return; }
+  if (!confirm(`确定删除全部 ${points.length} 个标注?此操作不可恢复(建议先导出备份)。`)) return;
+  points = []; savePoints(); renderAll();
+  toast('已清空');
+});
+
+/* ================= 列表交互(事件委托) ================= */
+$('#pointList').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-act]');
+  const li = e.target.closest('.point-item');
+  if (!li) return;
+  const id = li.dataset.id;
+  const p = points.find(x => x.id === id);
+  if (!p) return;
+  if (!btn){ openPointPopup(id); return; }          // 点条目主体 → 飞过去
+  if (btn.dataset.act === 'share') doSharePoint(p);
+  else if (btn.dataset.act === 'edit') openPointPopup(id);
+  else if (btn.dataset.act === 'del') delPoint(id);
+});
+
+/* ================= 其它 ================= */
+map.on('baselayerchange', () => renderAll());       // 图层切换时重算纠偏
+$('#btnShareAll').addEventListener('click', doShareAll);
+
+/* 移动端底部抽屉 */
+const panel = $('#panel'), fab = $('#fabPanel');
+fab.addEventListener('click', () => {
+  const open = panel.classList.toggle('open');
+  fab.textContent = open ? '✕' : '📋';
+});
+
+/* 调试/自动化句柄 */
+window.__mapApp = { map, getPoints: () => points, addPoint, wgs2gcj, gcj2wgs, usingGCJ };
+
+renderAll();
+renderLocInfo();
+parseShared();
+if (!storageOK) toast('当前环境无法使用 localStorage,刷新后数据会丢失', false);
+</script>
+</body>
+</html>
