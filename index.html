@@ -7,148 +7,257 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
+  /* ============ Apple / iOS 设计系统 ============ */
   :root{
-    --bg:#0f1420; --panel:#161d2d; --card:#1d2639; --card2:#232e46;
-    --text:#e8edf7; --muted:#8b97ad; --line:#2a3550;
-    --accent:#4f8cff; --accent2:#7aa8ff; --danger:#ff5d5d; --ok:#3ecf8e; --warn:#ffb454;
+    --bg:#F2F2F7;
+    --card:#FFFFFF;
+    --fill:#EFEFF4;
+    --fill2:#E5E5EA;
+    --text:#1C1C1E;
+    --text2:#3C3C43;
+    --muted:#8E8E93;
+    --line:rgba(60,60,67,.13);
+    --blue:#007AFF; --blue-tint:rgba(0,122,255,.12);
+    --red:#FF3B30;  --red-tint:rgba(255,59,48,.10);
+    --orange:#FF9500;
+    --map-bg:#E4E4E9;
+    --glass:rgba(252,252,253,.66);
+    --shadow:0 1px 2px rgba(0,0,0,.06), 0 6px 18px rgba(0,0,0,.08);
   }
-  *{box-sizing:border-box}
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#000000;
+      --card:#1C1C1E;
+      --fill:#2C2C2E;
+      --fill2:#3A3A3C;
+      --text:#F2F2F7;
+      --text2:#EBEBF5;
+      --muted:#98989D;
+      --line:rgba(84,84,88,.65);
+      --blue:#0A84FF; --blue-tint:rgba(10,132,255,.22);
+      --red:#FF453A;  --red-tint:rgba(255,69,58,.18);
+      --orange:#FF9F0A;
+      --map-bg:#111114;
+      --glass:rgba(28,28,30,.72);
+      --shadow:0 1px 3px rgba(0,0,0,.55), 0 8px 24px rgba(0,0,0,.40);
+    }
+  }
+
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
   html,body{height:100%;margin:0}
   body{
-    font-family:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",
+                 "PingFang SC","Segoe UI","Microsoft YaHei",sans-serif;
     background:var(--bg); color:var(--text); overflow:hidden;
     display:flex; flex-direction:column; height:100dvh;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
   }
   .muted{color:var(--muted)} .hidden{display:none!important}
 
-  /* ---------- 顶栏 ---------- */
+  /* ---------- 顶栏(毛玻璃导航)---------- */
   header{
-    display:flex; align-items:center; gap:10px; padding:0 14px; height:54px; flex:0 0 auto;
-    background:var(--panel); border-bottom:1px solid var(--line);
-    padding-top:env(safe-area-inset-top); height:calc(54px + env(safe-area-inset-top));
+    display:flex; align-items:center; gap:12px; padding:10px 16px;
+    background:var(--glass);
+    -webkit-backdrop-filter:blur(20px) saturate(180%); backdrop-filter:blur(20px) saturate(180%);
+    border-bottom:1px solid var(--line);
+    padding-top:calc(10px + env(safe-area-inset-top));
     z-index:1200;
   }
-  .brand{font-weight:700; font-size:17px; white-space:nowrap}
-  .brand small{color:var(--muted); font-weight:400; margin-left:6px; font-size:12px}
+  .brand{font-size:21px; font-weight:800; letter-spacing:-.4px; line-height:1.15; white-space:nowrap}
+  .brand small{display:block; font-size:11px; font-weight:500; color:var(--muted); letter-spacing:.2px; margin-top:1px}
   header .actions{margin-left:auto; display:flex; gap:8px}
 
+  /* ---------- 按钮(iOS 胶囊)---------- */
   .btn{
-    appearance:none; border:1px solid var(--line); background:var(--card); color:var(--text);
-    padding:8px 14px; border-radius:10px; font-size:14px; cursor:pointer; line-height:1;
-    transition:background .15s,border-color .15s,opacity .15s;
+    appearance:none; border:none; border-radius:980px; cursor:pointer;
+    padding:9px 16px; font-size:14px; font-weight:600; line-height:1; font-family:inherit;
+    background:var(--fill2); color:var(--text);
+    transition:transform .12s ease, opacity .12s ease, background .12s ease;
   }
-  .btn:hover{background:var(--card2); border-color:#3a4a72}
-  .btn:disabled{opacity:.45; cursor:not-allowed}
-  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
-  .btn.primary:hover{background:var(--accent2)}
-  .btn.danger{background:transparent; border-color:#6b3040; color:var(--danger)}
-  .btn.danger:hover{background:#3a1c24}
-  .btn.small{padding:6px 10px; font-size:13px; border-radius:8px}
-  .btn.active{background:var(--danger); border-color:var(--danger); color:#fff}
+  .btn:active{transform:scale(.96)}
+  .btn:disabled{opacity:.4; cursor:not-allowed}
+  .btn.primary{background:var(--blue); color:#fff}
+  .btn.danger{background:var(--red-tint); color:var(--red)}
+  .btn.small{padding:6px 13px; font-size:13px}
 
-  /* ---------- 分享横幅 ---------- */
+  .chip{
+    appearance:none; border:none; border-radius:980px; cursor:pointer; font-family:inherit;
+    padding:5px 13px; font-size:13px; font-weight:600; line-height:1.4;
+    background:var(--blue-tint); color:var(--blue);
+    transition:transform .12s ease, opacity .12s;
+  }
+  .chip:active{transform:scale(.95)}
+  .chip.gray{background:var(--fill2); color:var(--text2)}
+  .chip.red{background:var(--red-tint); color:var(--red)}
+
+  /* ---------- 通知横幅(iOS 通知风格)---------- */
   #banner{
-    flex:0 0 auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-    background:#2a2413; border-bottom:1px solid #5a4a1a; color:#ffd57a;
-    padding:8px 14px; font-size:14px; z-index:1100;
+    flex:0 0 auto; display:flex; align-items:center; gap:11px; flex-wrap:wrap;
+    background:var(--glass);
+    -webkit-backdrop-filter:blur(20px) saturate(180%); backdrop-filter:blur(20px) saturate(180%);
+    border-bottom:1px solid var(--line);
+    padding:9px 16px; font-size:14px; z-index:1100;
+  }
+  .banner-ico{
+    width:34px; height:34px; border-radius:9px; background:var(--blue); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:18px; flex:0 0 auto;
   }
   #banner .grow{flex:1 1 auto}
 
   /* ---------- 主区域 ---------- */
   #app{flex:1 1 auto; display:flex; min-height:0; position:relative}
-  #map{flex:1 1 auto; min-width:0; background:#0a0e18; z-index:1}
-  #map .leaflet-control-attribution{background:rgba(13,18,30,.75); color:#7f8aa0; font-size:11px}
-  #map .leaflet-control-attribution a{color:#9fb4dd}
-  #map .leaflet-bar a{background:var(--card); color:var(--text); border-color:var(--line)}
-  #map .leaflet-bar a:hover{background:var(--card2)}
-  .leaflet-container{font-family:inherit}
+  #map{flex:1 1 auto; min-width:0; background:var(--map-bg); z-index:1}
+  .leaflet-container{font-family:inherit; font-size:13px}
 
-  /* ---------- 侧栏 ---------- */
+  /* ---------- 侧栏(iOS 分组列表)---------- */
   #panel{
-    flex:0 0 340px; max-width:340px; background:var(--panel); border-left:1px solid var(--line);
+    flex:0 0 344px; max-width:344px; background:var(--bg);
+    border-left:1px solid var(--line);
     display:flex; flex-direction:column; min-height:0; z-index:1150;
   }
-  .panel-scroll{overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:12px; scrollbar-width:thin}
-  .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px}
-  .card h3{margin:0 0 8px; font-size:14px; letter-spacing:.5px}
-  .sec-head{display:flex; align-items:center; gap:8px; margin-bottom:8px}
-  .sec-head h3{margin:0; flex:1}
-  .badge{background:var(--card2); border-radius:99px; font-size:12px; padding:2px 9px; color:var(--muted)}
-  .sec-tools{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px}
+  .panel-scroll{overflow-y:auto; padding:14px 14px 28px; scrollbar-width:thin}
+  .sheet-grabber{display:none}
 
-  #locInfo{font-size:13px; line-height:1.7; word-break:break-all}
-  #locInfo .latlng{font-family:ui-monospace,Consolas,monospace; color:var(--accent2)}
-  #locInfo .warn{color:var(--warn)}
+  .sec-title{
+    font-size:13px; font-weight:600; color:var(--muted); letter-spacing:.3px; text-transform:uppercase;
+    margin:8px 2px 8px; display:flex; align-items:center; gap:7px;
+  }
+  .badge{background:var(--fill2); color:var(--muted); border-radius:980px; font-size:11.5px; font-weight:600; padding:1px 9px}
+  .group{background:var(--card); border-radius:14px; overflow:hidden; box-shadow:var(--shadow)}
+  .sec-tools{display:flex; flex-wrap:wrap; gap:7px; margin:0 0 10px}
 
-  #pointList{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px}
-  .point-item{background:var(--card2); border:1px solid var(--line); border-radius:12px; padding:10px 12px}
-  .point-item .pi-main{cursor:pointer}
-  .pi-title{font-weight:600; font-size:14px; display:flex; align-items:baseline; gap:8px}
-  .pi-title .name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-  .pi-time{color:var(--muted); font-size:11px; font-weight:400; margin-left:auto; white-space:nowrap}
-  .pi-coords{font-family:ui-monospace,Consolas,monospace; font-size:12px; color:var(--muted); margin-top:3px}
-  .pi-note{font-size:13px; color:#c6d0e2; margin-top:5px; white-space:pre-wrap; word-break:break-word;
-           display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden}
-  .pi-actions{display:flex; gap:6px; margin-top:8px}
-  #emptyHint{font-size:13px; line-height:1.8; text-align:center; padding:14px 6px}
+  #locCard{padding:13px 15px; font-size:14px; line-height:1.65; word-break:break-all}
+  #locCard .latlng{font-family:ui-monospace,"SF Mono",Consolas,monospace; font-size:13.5px; color:var(--blue); font-weight:600}
+  #locCard .warn{color:var(--red)}
+  #locCard h3{display:none}
 
+  /* ---------- 标注行 ---------- */
+  #pointList{list-style:none; margin:0; padding:0}
+  .point-item + .point-item{border-top:.5px solid var(--line)}
+  .row-main{display:flex; align-items:center; gap:12px; padding:12px 14px; cursor:pointer; transition:background .12s}
+  .row-main:active{background:var(--fill)}
+  .row-icon{
+    width:32px; height:32px; border-radius:8px; background:var(--blue); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:16px; flex:0 0 auto;
+    box-shadow:0 2px 5px var(--blue-tint);
+  }
+  .row-texts{flex:1; min-width:0}
+  .row-title{font-size:15px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .row-sub{font-size:12px; color:var(--muted); margin-top:2px; font-family:ui-monospace,"SF Mono",Consolas,monospace}
+  .row-note{font-size:13px; color:var(--text2); margin-top:4px; white-space:pre-wrap; word-break:break-word;
+            display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+  .chev{width:8px; height:14px; color:var(--muted); opacity:.55; flex:0 0 auto}
+  .row-actions{display:flex; gap:7px; padding:0 14px 12px 58px}
+
+  #emptyHint{font-size:13.5px; line-height:1.9; text-align:center; color:var(--muted); padding:22px 10px}
+
+  /* ---------- 浮动按钮 ---------- */
   #fabPanel{
-    display:none; position:absolute; right:14px; bottom:24px; z-index:1200;
-    width:52px; height:52px; border-radius:50%; border:1px solid var(--line);
-    background:var(--accent); color:#fff; font-size:22px; cursor:pointer;
-    box-shadow:0 4px 14px rgba(0,0,0,.45);
+    display:none; position:absolute; right:16px; bottom:28px; z-index:1200;
+    width:50px; height:50px; border-radius:50%; border:none; border:1px solid var(--line);
+    background:var(--glass); color:var(--blue);
+    -webkit-backdrop-filter:blur(20px) saturate(180%); backdrop-filter:blur(20px) saturate(180%);
+    cursor:pointer; box-shadow:var(--shadow);
+    align-items:center; justify-content:center;
+    transition:transform .12s ease;
   }
+  #fabPanel:active{transform:scale(.92)}
 
-  /* ---------- 弹窗 ---------- */
-  .pop{display:flex; flex-direction:column; gap:8px; min-width:230px}
-  .pop .leaflet-popup &{color:var(--text)}
-  .pop-coords{font-family:ui-monospace,Consolas,monospace; font-size:12px; color:var(--muted)}
+  /* ---------- Leaflet 弹窗(iOS 卡片)---------- */
+  .pop{display:flex; flex-direction:column; gap:9px; min-width:235px}
+  .pop-coords{font-family:ui-monospace,"SF Mono",Consolas,monospace; font-size:12px; color:var(--muted)}
   .pop input,.pop textarea{
-    width:100%; background:#f4f7fd; color:#1b2437; border:1px solid #cdd7ea; border-radius:8px;
-    padding:7px 9px; font-size:13px; font-family:inherit; resize:vertical;
+    width:100%; background:var(--fill); color:var(--text);
+    border:1.5px solid transparent; border-radius:10px;
+    padding:8px 11px; font-size:14px; font-family:inherit; resize:vertical;
+    transition:border-color .15s;
   }
-  .pop-actions{display:flex; gap:6px}
-  .leaflet-popup-content-wrapper{background:var(--card); color:var(--text); border-radius:14px; border:1px solid var(--line)}
-  .leaflet-popup-tip{background:var(--card)}
-  .leaflet-popup-content{margin:14px 16px}
+  .pop input:focus,.pop textarea:focus{outline:none; border-color:var(--blue)}
+  .pop-actions{display:flex; gap:7px}
+  .leaflet-popup-content-wrapper{
+    background:var(--card); color:var(--text); border-radius:16px;
+    box-shadow:0 2px 6px rgba(0,0,0,.10), 0 12px 34px rgba(0,0,0,.16);
+  }
+  .leaflet-popup-tip{background:var(--card); box-shadow:0 2px 6px rgba(0,0,0,.10)}
+  .leaflet-popup-content{margin:15px 17px; line-height:1.45}
+  .leaflet-popup-close-button{color:var(--muted)!important; font-size:22px!important; padding:6px 8px 0 0!important}
+
+  /* ---------- Leaflet 控件(iOS 化)---------- */
+  .leaflet-bar{border:none!important; box-shadow:none!important; border-radius:0}
+  .leaflet-bar a{
+    background:var(--card)!important; color:var(--text)!important;
+    border-bottom:none!important; border-radius:10px!important; margin-bottom:7px;
+    box-shadow:var(--shadow); width:32px!important; height:32px!important; line-height:32px!important;
+    font-weight:500;
+  }
+  .leaflet-bar a:hover{background:var(--fill)!important}
+  .leaflet-bar a:last-child{margin-bottom:0}
+  .leaflet-control-layers{
+    background:var(--glass)!important;
+    -webkit-backdrop-filter:blur(20px) saturate(180%); backdrop-filter:blur(20px) saturate(180%);
+    border:1px solid var(--line)!important; border-radius:10px!important;
+    box-shadow:var(--shadow)!important; color:var(--text);
+  }
+  .leaflet-control-layers-expanded{padding:9px 12px!important; font-size:13px}
+  .leaflet-control-layers-toggle{filter:brightness(.35)}
+  @media (prefers-color-scheme: dark){
+    .leaflet-control-layers-toggle{filter:invert(1) brightness(1.8)}
+  }
+  #map .leaflet-control-attribution{
+    background:var(--glass); color:var(--muted); font-size:10.5px; padding:2px 8px;
+    -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+    border-radius:7px 0 0 0;
+  }
+  #map .leaflet-control-attribution a{color:var(--blue)}
 
   /* ---------- 地图图钉 / 蓝点 ---------- */
   .pin-wrap{background:none!important; border:none!important}
-  .pin{width:30px; height:42px; filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))}
+  .pin{width:31px; height:43px; filter:drop-shadow(0 2px 4px rgba(0,0,0,.30))}
   .bluedot{
-    width:18px; height:18px; border-radius:50%; background:#3b82f6; border:3px solid #fff;
-    box-shadow:0 0 0 3px rgba(59,130,246,.30), 0 2px 8px rgba(0,0,0,.5);
-    animation:pulse 2s ease-out infinite;
+    width:18px; height:18px; border-radius:50%; background:var(--blue); border:3px solid #fff;
+    box-shadow:0 0 0 3px var(--blue-tint), 0 1px 6px rgba(0,0,0,.35);
+    animation:pulse 2.2s ease-out infinite;
   }
   @keyframes pulse{
-    0%{box-shadow:0 0 0 3px rgba(59,130,246,.35), 0 2px 8px rgba(0,0,0,.5)}
-    70%{box-shadow:0 0 0 16px rgba(59,130,246,0), 0 2px 8px rgba(0,0,0,.5)}
-    100%{box-shadow:0 0 0 3px rgba(59,130,246,0), 0 2px 8px rgba(0,0,0,.5)}
+    0%{box-shadow:0 0 0 3px var(--blue-tint), 0 1px 6px rgba(0,0,0,.35)}
+    70%{box-shadow:0 0 0 17px rgba(0,122,255,0), 0 1px 6px rgba(0,0,0,.35)}
+    100%{box-shadow:0 0 0 3px rgba(0,122,255,0), 0 1px 6px rgba(0,0,0,.35)}
   }
 
-  /* ---------- Toast ---------- */
+  /* ---------- Toast(iOS 通知横幅)---------- */
   #toast{
-    position:fixed; left:50%; bottom:34px; transform:translateX(-50%) translateY(20px);
-    background:#101725; color:var(--text); border:1px solid var(--line); border-radius:12px;
-    padding:10px 18px; font-size:14px; opacity:0; pointer-events:none; z-index:2000;
-    transition:opacity .25s, transform .25s; max-width:88vw; text-align:center;
-    box-shadow:0 6px 24px rgba(0,0,0,.5);
+    position:fixed; left:50%; top:calc(env(safe-area-inset-top) + 64px);
+    transform:translateX(-50%) translateY(-12px) scale(.97);
+    background:var(--glass); color:var(--text);
+    -webkit-backdrop-filter:blur(24px) saturate(180%); backdrop-filter:blur(24px) saturate(180%);
+    border:1px solid var(--line); border-radius:18px;
+    padding:11px 20px; font-size:14px; font-weight:500; opacity:0; pointer-events:none; z-index:2000;
+    transition:opacity .28s, transform .28s; max-width:88vw; text-align:center;
+    box-shadow:var(--shadow);
   }
-  #toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+  #toast.show{opacity:1; transform:translateX(-50%) translateY(0) scale(1)}
 
-  /* ---------- 移动端 ---------- */
+  /* ---------- 移动端(iOS Sheet)---------- */
   @media (max-width: 760px){
+    .brand{font-size:19px}
     .brand small{display:none}
     #panel{
       position:absolute; left:0; right:0; bottom:0; max-width:none; flex:none;
-      max-height:62dvh; border-left:none; border-top:1px solid var(--line); border-radius:18px 18px 0 0;
-      transform:translateY(calc(100% - 0px)); transition:transform .28s ease;
-      box-shadow:0 -8px 30px rgba(0,0,0,.5);
+      max-height:64dvh; border-left:none;
+      border-radius:20px 20px 0 0;
+      transform:translateY(101%); transition:transform .32s cubic-bezier(.32,.72,.35,1);
+      box-shadow:0 -10px 44px rgba(0,0,0,.22);
       padding-bottom:env(safe-area-inset-bottom);
+      background:var(--bg);
     }
     #panel.open{transform:translateY(0)}
-    #fabPanel{display:block}
-    header{gap:6px} header .btn{padding:8px 10px}
+    .sheet-grabber{
+      display:block; width:38px; height:5px; border-radius:3px;
+      background:var(--fill2); margin:8px auto 2px; flex:0 0 auto;
+    }
+    #fabPanel{display:flex}
+    header .btn{padding:8px 13px; font-size:13.5px}
+    .row-actions{padding-left:14px}
   }
 </style>
 </head>
@@ -163,9 +272,10 @@
 </header>
 
 <div id="banner" class="hidden">
+  <span class="banner-ico">🧭</span>
   <span id="bannerText">来自分享的位置</span>
   <span class="grow"></span>
-  <button class="btn small primary" id="bannerSave">保存到本地</button>
+  <button class="btn primary small" id="bannerSave">保存到本地</button>
   <button class="btn small" id="bannerDismiss">忽略</button>
 </div>
 
@@ -173,36 +283,39 @@
   <div id="map"></div>
 
   <aside id="panel">
+    <div class="sheet-grabber"></div>
     <div class="panel-scroll">
-      <section class="card">
-        <h3>📍 我的位置</h3>
+      <div class="sec-title">我的位置</div>
+      <div class="group" id="locCard">
         <div id="locInfo" class="muted">尚未定位。点击右上角「定位」按钮获取当前 GPS / 网络位置。</div>
-      </section>
+      </div>
 
-      <section class="card">
-        <div class="sec-head">
-          <h3>🗺 位置标注</h3>
-          <span class="badge" id="pointCount">0</span>
-        </div>
-        <div class="sec-tools">
-          <button class="btn small" id="btnShareAll">🔗 分享全部</button>
-          <button class="btn small" id="btnExport">⬇ 导出</button>
-          <button class="btn small" id="btnImport">⬆ 导入</button>
-          <button class="btn small danger" id="btnClear">清空</button>
-          <input type="file" id="fileImport" accept=".json,application/json" hidden>
-        </div>
-        <ul id="pointList"></ul>
-        <div id="emptyHint" class="muted">
-          还没有标注。<br>
-          · 点「📍 定位」获取当前位置，再点「✚ 标记此处」收藏<br>
-          · 在地图上<strong>右键 / 长按</strong>任意位置即可添加标注<br>
-          · 每个标注可填写名称与备注评论，并单独分享
-        </div>
-      </section>
+      <div class="sec-title" style="margin-top:18px">位置标注 <span class="badge" id="pointCount">0</span></div>
+      <div class="sec-tools">
+        <button class="chip" id="btnShareAll">🔗 分享全部</button>
+        <button class="chip gray" id="btnExport">导出</button>
+        <button class="chip gray" id="btnImport">导入</button>
+        <button class="chip red" id="btnClear">清空</button>
+        <input type="file" id="fileImport" accept=".json,application/json" hidden>
+      </div>
+      <ul id="pointList" class="group"></ul>
+      <div id="emptyHint" class="muted">
+        还没有标注。<br>
+        · 点「📍 定位」获取当前位置,再点「✚ 标记此处」收藏<br>
+        · 在地图上<strong>右键 / 长按</strong>任意位置即可添加标注<br>
+        · 每个标注可填写名称与备注评论,并单独分享
+      </div>
     </div>
   </aside>
 
-  <button id="fabPanel" title="标注列表">📋</button>
+  <button id="fabPanel" title="标注列表" aria-label="标注列表">
+    <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round">
+      <path d="M9 6h12M9 12h12M9 18h12"/>
+      <circle cx="4.2" cy="6" r="1.2" fill="currentColor" stroke="none"/>
+      <circle cx="4.2" cy="12" r="1.2" fill="currentColor" stroke="none"/>
+      <circle cx="4.2" cy="18" r="1.2" fill="currentColor" stroke="none"/>
+    </svg>
+  </button>
 </div>
 
 <div id="toast"></div>
@@ -294,11 +407,36 @@ const amapLayer = L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang
 const osmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19, attribution: '© OpenStreetMap contributors', gcj: false
 });
+/* 低饱和素净瓦片,最贴合 Apple 风格;浅色/深色随系统 */
+const cartoLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  subdomains: 'abcd', maxZoom: 19, attribution: '© OpenStreetMap · © CARTO', gcj: false
+});
+const cartoDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  subdomains: 'abcd', maxZoom: 19, attribution: '© OpenStreetMap · © CARTO', gcj: false
+});
 
+const preferDark = matchMedia('(prefers-color-scheme: dark)');
 const map = L.map('map', { worldCopyJump: true, zoomControl: false }).setView([34, 106], 4);
 L.control.zoom({ position: 'topleft' }).addTo(map);
-amapLayer.addTo(map);
-L.control.layers({ '高德地图': amapLayer, 'OpenStreetMap': osmLayer }, null, { position: 'topright' }).addTo(map);
+(preferDark.matches ? cartoDark : cartoLight).addTo(map);
+L.control.layers(
+  { '浅色地图': cartoLight, '深色地图': cartoDark, '高德地图': amapLayer, 'OpenStreetMap': osmLayer },
+  null, { position: 'topright' }
+).addTo(map);
+
+/* Carto 瓦片国内可能加载不畅:开局 6 连错且无成功时自动切高德 */
+let tileFails = 0, tileOks = 0, userPickedLayer = false;
+for (const l of [cartoLight, cartoDark]){
+  l.on('tileload', () => tileOks++);
+  l.on('tileerror', () => {
+    if (++tileFails === 6 && tileOks === 0 && !userPickedLayer){
+      map.removeLayer(l);
+      amapLayer.addTo(map);
+      renderAll();
+      toast('浅色瓦片加载失败,已切换为高德地图');
+    }
+  });
+}
 
 const usingGCJ = () => map.hasLayer(amapLayer) && !!amapLayer.options.gcj;
 const disp = ll => { const [la, ln] = usingGCJ() ? wgs2gcj(ll.lat, ll.lng) : [ll.lat, ll.lng]; return [la, ln]; };
@@ -353,21 +491,21 @@ function renderAll(){
   Object.keys(markersById).forEach(k => delete markersById[k]);
 
   for (const p of points){
-    const m = L.marker(disp(p), { icon: pinIcon('#4f8cff'), riseOnHover: true })
+    const m = L.marker(disp(p), { icon: pinIcon('#007AFF'), riseOnHover: true })
       .bindPopup(popupHtml(p), { maxWidth: 300, autoPanPadding: [24, 24] })
       .addTo(markersGroup);
     if (p.title) m.bindTooltip(esc(p.title), { direction: 'top', offset: [0, -36] });
     markersById[p.id] = m;
   }
   for (const t of sharedTemp){
-    L.marker(disp(t), { icon: pinIcon('#ff9f43') })
+    L.marker(disp(t), { icon: pinIcon('#FF9500') })
       .bindPopup(popupHtml(t), { maxWidth: 300, autoPanPadding: [24, 24] })
       .addTo(markersGroup);
   }
   if (curFix){
     const [la, ln] = wgs2gcj(curFix.lat, curFix.lng); // 蓝点画在图层坐标系里,GCJ 图层也纠偏
     const pos = usingGCJ() ? [la, ln] : [curFix.lat, curFix.lng];
-    if (curFix.accuracy) L.circle(pos, { radius: curFix.accuracy, color: '#3b82f6', weight: 1, fillColor: '#3b82f6', fillOpacity: .12 }).addTo(markersGroup);
+    if (curFix.accuracy) L.circle(pos, { radius: curFix.accuracy, color: '#007AFF', weight: 1.5, fillColor: '#007AFF', fillOpacity: .12 }).addTo(markersGroup);
     L.marker(pos, { icon: blueDotIcon, zIndexOffset: 1000 }).addTo(markersGroup);
   }
   renderList();
@@ -379,15 +517,19 @@ function renderList(){
   const ul = $('#pointList');
   ul.innerHTML = points.map(p => `
     <li class="point-item" data-id="${p.id}">
-      <div class="pi-main">
-        <div class="pi-title"><span class="name">${esc(p.title) || '<span class="muted">未命名</span>'}</span><span class="pi-time">${fmtTime(p.createdAt)}</span></div>
-        <div class="pi-coords">${fmtLL(p.lat, p.lng)}</div>
-        ${p.note ? `<div class="pi-note">${esc(p.note)}</div>` : ''}
+      <div class="row-main">
+        <div class="row-icon">📍</div>
+        <div class="row-texts">
+          <div class="row-title"><span class="name">${esc(p.title) || '<span class="muted">未命名位置</span>'}</span></div>
+          <div class="row-sub">${fmtLL(p.lat, p.lng)}${p.accuracy ? ' · ±' + Math.round(p.accuracy) + 'm' : ''} · ${fmtTime(p.createdAt)}</div>
+          ${p.note ? `<div class="row-note">${esc(p.note)}</div>` : ''}
+        </div>
+        <svg class="chev" viewBox="0 0 8 14" fill="none"><path d="M1.2 1.2l5.8 5.8-5.8 5.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
-      <div class="pi-actions">
-        <button class="btn small" data-act="share">🔗 分享</button>
-        <button class="btn small" data-act="edit">✏️ 编辑</button>
-        <button class="btn small danger" data-act="del">删除</button>
+      <div class="row-actions">
+        <button class="chip" data-act="share">分享</button>
+        <button class="chip gray" data-act="edit">编辑</button>
+        <button class="chip red" data-act="del">删除</button>
       </div>
     </li>`).join('');
 }
@@ -631,14 +773,17 @@ $('#pointList').addEventListener('click', e => {
 });
 
 /* ================= 其它 ================= */
-map.on('baselayerchange', () => renderAll());       // 图层切换时重算纠偏
+map.on('baselayerchange', () => { userPickedLayer = true; renderAll(); }); // 切图层:记为用户选择并重算纠偏
 $('#btnShareAll').addEventListener('click', doShareAll);
 
 /* 移动端底部抽屉 */
 const panel = $('#panel'), fab = $('#fabPanel');
+const FAB_LIST_SVG = '<svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4.2" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="4.2" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="4.2" cy="18" r="1.2" fill="currentColor" stroke="none"/></svg>';
+const FAB_CLOSE_SVG = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+fab.innerHTML = FAB_LIST_SVG;
 fab.addEventListener('click', () => {
   const open = panel.classList.toggle('open');
-  fab.textContent = open ? '✕' : '📋';
+  fab.innerHTML = open ? FAB_CLOSE_SVG : FAB_LIST_SVG;
 });
 
 /* 调试/自动化句柄 */
