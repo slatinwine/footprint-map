@@ -415,25 +415,24 @@ const cartoDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x
   subdomains: 'abcd', maxZoom: 19, attribution: '© OpenStreetMap · © CARTO', gcj: false
 });
 
-const preferDark = matchMedia('(prefers-color-scheme: dark)');
 const map = L.map('map', { worldCopyJump: true, zoomControl: false }).setView([34, 106], 4);
 L.control.zoom({ position: 'topleft' }).addTo(map);
-(preferDark.matches ? cartoDark : cartoLight).addTo(map);
+amapLayer.addTo(map); // 默认高德(国内加载最稳);浅色/深色素净瓦片可手动切换
 L.control.layers(
-  { '浅色地图': cartoLight, '深色地图': cartoDark, '高德地图': amapLayer, 'OpenStreetMap': osmLayer },
+  { '高德地图': amapLayer, '浅色地图': cartoLight, '深色地图': cartoDark, 'OpenStreetMap': osmLayer },
   null, { position: 'topright' }
 ).addTo(map);
 
-/* Carto 瓦片国内可能加载不畅:开局 6 连错且无成功时自动切高德 */
-let tileFails = 0, tileOks = 0, userPickedLayer = false;
+/* Carto 瓦片国内可能加载不畅:开局 6 连错且无成功时自动切回高德 */
+let tileFails = 0, tileOks = 0;
 for (const l of [cartoLight, cartoDark]){
   l.on('tileload', () => tileOks++);
   l.on('tileerror', () => {
-    if (++tileFails === 6 && tileOks === 0 && !userPickedLayer){
+    if (++tileFails === 6 && tileOks === 0 && map.hasLayer(l)){
       map.removeLayer(l);
       amapLayer.addTo(map);
       renderAll();
-      toast('浅色瓦片加载失败,已切换为高德地图');
+      toast('该瓦片源加载失败,已切换为高德地图');
     }
   });
 }
@@ -773,7 +772,7 @@ $('#pointList').addEventListener('click', e => {
 });
 
 /* ================= 其它 ================= */
-map.on('baselayerchange', () => { userPickedLayer = true; renderAll(); }); // 切图层:记为用户选择并重算纠偏
+map.on('baselayerchange', () => { tileFails = 0; tileOks = 0; renderAll(); }); // 切图层:重置瓦片计数并重算纠偏
 $('#btnShareAll').addEventListener('click', doShareAll);
 
 /* 移动端底部抽屉 */
